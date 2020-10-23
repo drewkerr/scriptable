@@ -1,6 +1,9 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: calendar-alt;
+// Optional configuration: calendars to show
+// e.g. const cals = ["Home", "Work"]
+const cals = []
 const date = new Date()
 
 if (config.runsInWidget) {
@@ -18,20 +21,22 @@ if (config.runsInWidget) {
   dayDate.font = Font.semiboldSystemFont(fontSize)
 
   header.addSpacer()
-
+  
   // Get calendar events
   let events = await CalendarEvent.today([])
 
   // Trim (and count) events to fit: past > future > allday
   let allday = [], future = [], past = []
   events.forEach(event => {
-    if (event.isAllDay) {
-      allday.push(event)
-    } else {
-      if (event.endDate.getTime() < date.getTime()) {
-        past.push(event)
+    if (!cals || cals.includes(event.calendar.title)) {
+      if (event.isAllDay) {
+        allday.push(event)
       } else {
-        future.push(event)
+        if (event.endDate.getTime() < date.getTime()) {
+          past.push(event)
+        } else {
+          future.push(event)
+        }
       }
     }
   })
