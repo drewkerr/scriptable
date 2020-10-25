@@ -87,9 +87,11 @@ async function saveData() {
     else a[date] += cases
     return a
   }, {})
-  const weekavg = (n) => Object.values(graph).slice(0 + n, 7 + n).reduce((a, b) => a + b, 0) / 7
-  let growth = weekavg(0) / weekavg(1)
-  let month = Object.values(graph)
+  const month = Object.values(graph)
+  const t = 7 // 7 day smoothing period
+  const sum = (a, b) => a + b
+  const tsum = (n) => month.slice(n * t, t + n * t).reduce(sum)
+  const growth = Math.pow(tsum(0) / tsum(1), 1 / t)
   let data = {
     "stats": {
       "Growth factor": growth.toFixed(2),
