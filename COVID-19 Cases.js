@@ -1,6 +1,9 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-green; icon-glyph: procedures;
+// Configuration
+const location = "GREATER BENDIGO"
+
 function parseCSV(str, len) {
   let arr = [];
   let quote = false;
@@ -78,7 +81,7 @@ async function saveData() {
   let weeksData = await getData(weeks, 2)
 
   let vicData = stateData.filter(data => data["State/territory"] == "VIC")
-  let locData = localData.filter(data => data["LGA"] == "GREATER BENDIGO")
+  let locData = localData.filter(data => data["LGA"] == location)
 
   let graph = stateData.reduce((a, b) => {
     let date = b["Date announced"]
@@ -102,16 +105,16 @@ async function saveData() {
       "Victoria new cases": vicData[0]["New cases"],
       "Victoria active cases": casesData.filter(data => data["State/territory"] == "VIC")[0]["Current"],
       "Victoria total cases": vicData[0]["Cumulative confirmed"],
-      "Australia new cases": Object.values(graph)[0].toString(),
+      "Australia new cases": month[0].toString(),
       "Australia active cases": casesData[0]["Current"],
       "Australia total cases": casesData[0]["Confirmed (total)"],
       "Australia total deaths": casesData[0]["Deceased"]
     },
     "widget": {
       "14d": `${weeksData[0]["Metro Average"]} (M) ${weeksData[0]["Regional Average"]} (R)`,
-      "BGO": `${locData[0]["Total Cases"]} (${locData[0]["Active Cases"]} active)`,
+      "LGA": `${locData[0]["Total Cases"]} (${locData[0]["Active Cases"]} active)`,
       "VIC": `${vicData[0]["Cumulative confirmed"]} (+${vicData[0]["New cases"]})`,
-      "AUS": `${casesData[0]["Confirmed (total)"]} (+${Object.values(graph)[0].toString()})`
+      "AUS": `${casesData[0]["Confirmed (total)"]} (+${month[0].toString()})`
     },
     "graph": month,
     "date": casesData[0]["Date"],
@@ -236,7 +239,7 @@ function createTable(data) {
     table.addRow(row)
   })
   if (config.runsWithSiri)
-    Speech.speak(`There are ${data["stats"]["Local active cases"]} active cases in Bendigo, and ${data["stats"]["Victoria new cases"]} new cases in Victoria today.`)
+    Speech.speak(`There are ${data["stats"]["Local active cases"]} active local cases, and ${data["stats"]["Victoria new cases"]} new cases across the state today.`)
   table.present()
 }
 
