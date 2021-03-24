@@ -69,16 +69,16 @@ async function saveData() {
     range: 'Victorian LGAs!A:D'
   })
 
-  const weeks = url + params({
+  const vaccs = url + params({
     cache: true,
     sheet: sid,
-    range: 'Vic 14 day average!A:E'
+    range: 'Vaccine!A:E'
   })
 
   let casesData = await getData(cases, 10)
   let stateData = await getData(state, 28*8+1)
   let localData = await getData(local, 80)
-  let weeksData = await getData(weeks, 2)
+  let vaccsData = await getData(vaccs, 2)
 
   let vicData = stateData.filter(data => data["State/territory"] == "VIC")
   let locData = localData.filter(data => data["LGA"] == location)
@@ -90,6 +90,9 @@ async function saveData() {
     else a[date] += cases
     return a
   }, {})
+  let total = stateData.slice(0,8).reduce((a, b) => {
+    return a + parseInt(b["Cumulative confirmed"]) || 0
+  }, 0)
   const month = Object.values(graph)
   const t = 7 // 7 day smoothing period
   const sum = (a, b) => a + b
@@ -98,8 +101,8 @@ async function saveData() {
   let data = {
     "stats": {
       "Growth factor": growth.toFixed(2),
-      "Regional 14 day avg": weeksData[0]["Regional Average"],
-      "Metro 14 day average": weeksData[0]["Metro Average"],
+      "New vaccine doses": vaccsData[0]["New doses"],
+      "Cumulative vaccine doses": vaccsData[0]["Cumulative doses"],
       "Local active cases": locData[0]["Active Cases"],
       "Local total cases": locData[0]["Total Cases"],
       "Victoria new cases": vicData[0]["New cases"],
@@ -107,14 +110,14 @@ async function saveData() {
       "Victoria total cases": vicData[0]["Cumulative confirmed"],
       "Australia new cases": month[0].toString(),
       "Australia active cases": casesData[0]["Current"],
-      "Australia total cases": casesData[0]["Confirmed (total)"],
+      "Australia total cases": total.toString(),
       "Australia total deaths": casesData[0]["Deceased"]
     },
     "widget": {
-      "14d": `${weeksData[0]["Metro Average"]} (M) ${weeksData[0]["Regional Average"]} (R)`,
+      "VAX": `${vaccsData[0]["Cumulative doses"]} (+${vaccsData[0]["New doses"]})`,
       "LGA": `${locData[0]["Total Cases"]} (${locData[0]["Active Cases"]} active)`,
       "VIC": `${vicData[0]["Cumulative confirmed"]} (+${vicData[0]["New cases"]})`,
-      "AUS": `${casesData[0]["Confirmed (total)"]} (+${month[0].toString()})`
+      "AUS": `${total.toString()} (+${month[0].toString()})`
     },
     "graph": month,
     "date": casesData[0]["Date"],
