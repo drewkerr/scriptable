@@ -20,6 +20,25 @@ function parseCSV(str, len) {
     if (cc == '\r' && !quote) { ++row; col = 0; continue; }
     arr[row][col] += cc;
   }
+// Configuration
+const location = "GREATER BENDIGO"
+
+function parseCSV(str, len) {
+  let arr = [];
+  let quote = false;
+  let col, c;
+  for (let row = col = c = 0; c < str.length && row < len; c++) {
+    let cc = str[c], nc = str[c+1];
+    arr[row] = arr[row] || [];
+    arr[row][col] = arr[row][col] || '';
+    if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+    if (cc == '"') { quote = !quote; continue; }
+    if (cc == ',' && !quote) { ++col; continue; }
+    if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+    if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+    if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+    arr[row][col] += cc;
+  }
   return arr;
 }
 
@@ -102,7 +121,7 @@ async function saveData() {
     "stats": {
       "Growth factor": growth.toFixed(2),
       "New vaccine doses": vaccsData[0]["New doses"],
-      "Cumulative vaccine doses": vaccsData[0]["Cumulative doses"],
+      "Cumulative doses": vaccsData[0]["Cumulative doses"],
       "Local active cases": locData[0]["Active Cases"],
       "Local total cases": locData[0]["Total Cases"],
       "Victoria new cases": vicData[0]["New cases"],
@@ -114,7 +133,7 @@ async function saveData() {
       "Australia total deaths": casesData[0]["Deceased"]
     },
     "widget": {
-      "VAX": `${vaccsData[0]["Cumulative doses"]} (+${vaccsData[0]["New doses"]})`,
+      "VAX": `${vaccsData[0]["Cumulative doses"]} (+${Math.round(parseInt(vaccsData[0]["New doses"].replace(/,/g, ''))/1000)}k)`,
       "LGA": `${locData[0]["Total Cases"]} (${locData[0]["Active Cases"]} active)`,
       "VIC": `${vicData[0]["Cumulative confirmed"]} (+${vicData[0]["New cases"]})`,
       "AUS": `${total.toString()} (+${month[0].toString()})`
