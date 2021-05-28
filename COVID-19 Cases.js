@@ -1,27 +1,8 @@
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
-// icon-color: deep-green; icon-glyph: procedures;
-// Configuration
-const location = "GREATER BENDIGO"
+// Source: https://docs.google.com/spreadsheets/d/1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk/edit
+// ABC News: https://abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704
 
-function parseCSV(str, len) {
-  let arr = [];
-  let quote = false;
-  let col, c;
-  for (let row = col = c = 0; c < str.length && row < len; c++) {
-    let cc = str[c], nc = str[c+1];
-    arr[row] = arr[row] || [];
-    arr[row][col] = arr[row][col] || '';
-    if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
-    if (cc == '"') { quote = !quote; continue; }
-    if (cc == ',' && !quote) { ++col; continue; }
-    if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
-    if (cc == '\n' && !quote) { ++row; col = 0; continue; }
-    if (cc == '\r' && !quote) { ++row; col = 0; continue; }
-    arr[row][col] += cc;
-  }
 // Configuration
-const location = "GREATER BENDIGO"
+const postcode = "3550"
 
 function parseCSV(str, len) {
   let arr = [];
@@ -85,7 +66,7 @@ async function saveData() {
   const local = url + params({
     cache: true,
     sheet: sid,
-    range: 'Victorian LGAs!A:D'
+    range: 'Vic Postcodes (Auto)!A:I'
   })
 
   const vaccs = url + params({
@@ -96,11 +77,11 @@ async function saveData() {
 
   let casesData = await getData(cases, 10)
   let stateData = await getData(state, 28*8+1)
-  let localData = await getData(local, 80)
+  let localData = await getData(local, 704)
   let vaccsData = await getData(vaccs, 2)
 
   let vicData = stateData.filter(data => data["State/territory"] == "VIC")
-  let locData = localData.filter(data => data["LGA"] == location)
+  let locData = localData.filter(data => data["postcode"] == postcode)
 
   let graph = stateData.reduce((a, b) => {
     let date = b["Date announced"]
@@ -122,8 +103,8 @@ async function saveData() {
       "Growth factor": growth.toFixed(2),
       "New vaccine doses": vaccsData[0]["New doses"],
       "Cumulative doses": vaccsData[0]["Cumulative doses"],
-      "Local active cases": locData[0]["Active Cases"],
-      "Local total cases": locData[0]["Total Cases"],
+      "Local active cases": locData[0]["active"],
+      "Local total cases": locData[0]["cases"],
       "Victoria new cases": vicData[0]["New cases"],
       "Victoria active cases": casesData.filter(data => data["State/territory"] == "VIC")[0]["Current"],
       "Victoria total cases": vicData[0]["Cumulative confirmed"],
@@ -134,7 +115,7 @@ async function saveData() {
     },
     "widget": {
       "VAX": `${vaccsData[0]["Cumulative doses"]} (+${Math.round(parseInt(vaccsData[0]["New doses"].replace(/,/g, ''))/1000)}k)`,
-      "LGA": `${locData[0]["Total Cases"]} (${locData[0]["Active Cases"]} active)`,
+      "LGA": `${locData[0]["cases"]} (${locData[0]["active"]} active)`,
       "VIC": `${vicData[0]["Cumulative confirmed"]} (+${vicData[0]["New cases"]})`,
       "AUS": `${total.toString()} (+${month[0].toString()})`
     },
