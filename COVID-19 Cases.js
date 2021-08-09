@@ -1,14 +1,13 @@
-// Source: https://docs.google.com/spreadsheets/d/1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk/edit
-// ABC News: https://abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704
+// From ABC News: https://abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704
 
 // Configuration
 const postcode = "3550"
 
-function parseCSV(str, len) {
+function parseCSV(str, len = 0) {
   let arr = [];
   let quote = false;
   let col, c;
-  for (let row = col = c = 0; c < str.length && row < len; c++) {
+  for (let row = col = c = 0; c < str.length && (!!len === row < len); c++) {
     let cc = str[c], nc = str[c+1];
     arr[row] = arr[row] || [];
     arr[row][col] = arr[row][col] || '';
@@ -35,26 +34,45 @@ function arrayHash(arr) {
   })
 }
 
-async function getData(url, len) {
+async function getData(url, len = 0) {
   let req = new Request(url)
   let txt = await req.loadString()
   let csv = await parseCSV(txt, len)
   return await arrayHash(csv)
 }
 
-async function saveData() {
-  const url = 'https://covid-sheets-mirror.web.app/api?'
-  const sid = '1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk'
+// Source: https://docs.google.com/spreadsheets/d/1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk/edit
 
-  function params(obj) {
-    return Object.entries(obj)
-      .map(([key, val]) => `${key}=${encodeURI(val)}`).join("&")
+const url = 'https://covid-sheets-mirror.web.app/api?'
+const sid = '1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk'
+
+function params(obj) {
+  return Object.entries(obj)
+    .map(([key, val]) => `${key}=${encodeURI(val)}`).join("&")
+}
+
+async function checkData() {
+
+  const meta = url + params({
+    cache: true,
+    sheet: sid,
+    range: 'Metadata!A:B'
+  })
+
+  let data = await getData(meta, 3)
+  if (data[0].Value == "TRUE") {
+    return data[1].Value
+  } else {
+    return false
   }
+}
+
+async function saveData(updated) {
 
   const cases = url + params({
     cache: true,
     sheet: sid,
-    range: 'Deaths Recoveries!A:H'
+    range: 'Deaths Recoveries!A:G'
   })
 
   const state = url + params({
@@ -68,17 +86,17 @@ async function saveData() {
     sheet: sid,
     range: 'Vic Postcodes (Auto)!A:I'
   })
-
-  const vaccs = url + params({
-    cache: true,
-    sheet: sid,
-    range: 'Vaccine!A:E'
-  })
+  
+  const vaccs = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-vaccinations-by-administration.csv'
+  const vacpc = 'https://www.abc.net.au/dat/news/interactives/covid19-data//aus-doses-breakdown.csv'
 
   let casesData = await getData(cases, 10)
   let stateData = await getData(state, 28*8+1)
   let localData = await getData(local, 704)
-  let vaccsData = await getData(vaccs, 2)
+  let vaccsData = await getData(vaccs)
+  let vacpcData = await getData(vacpc)
+  vaccsData = vaccsData[vaccsData.length - 12]
+  vacpcData = vacpcData[vacpcData.length - 9]
 
   let vicData = stateData.filter(data => data["State/territory"] == "VIC")
   let locData = localData.filter(data => data["postcode"] == postcode)
@@ -101,8 +119,10 @@ async function saveData() {
   let data = {
     "stats": {
       "Growth factor": growth.toFixed(2),
-      "New vaccine doses": vaccsData[0]["New doses"],
-      "Cumulative doses": vaccsData[0]["Cumulative doses"],
+      "New vaccine doses": parseInt(vaccsData["daily"]).toLocaleString(),
+      "Cumulative doses": parseInt(vaccsData["total"]).toLocaleString(),
+      "Fully vaccinated": vacpcData["totalSecondPct"]+'%',
+      "At least partially": vacpcData["totalFirstPct"]+'%',
       "Local active cases": locData[0]["active"],
       "Local total cases": locData[0]["cases"],
       "Victoria new cases": vicData[0]["New cases"],
@@ -110,18 +130,20 @@ async function saveData() {
       "Victoria total cases": vicData[0]["Cumulative confirmed"],
       "Australia new cases": month[0].toString(),
       "Australia active cases": casesData[0]["Current"],
-      "Australia total cases": total.toString(),
+      "Australia total cases": total.toLocaleString(),
       "Australia total deaths": casesData[0]["Deceased"]
     },
     "widget": {
-      "VAX": `${vaccsData[0]["Cumulative doses"]} (+${Math.round(parseInt(vaccsData[0]["New doses"].replace(/,/g, ''))/1000)}k)`,
-      "LGA": `${locData[0]["cases"]} (${locData[0]["active"]} active)`,
-      "VIC": `${vicData[0]["Cumulative confirmed"]} (+${vicData[0]["New cases"]})`,
-      "AUS": `${total.toString()} (+${month[0].toString()})`
+      //"VAX": `${parseInt(vaccsData["total"]).toLocaleString()} (+${Math.round(parseInt(vaccsData["daily"])/1000)}k)`,
+      "LGA": `${locData[0]["active"]} active`,
+      "VIC": `${casesData.filter(data => data["State/territory"] == "VIC")[0]["Current"]} (+${vicData[0]["New cases"]})`,
+      "AUS": `${casesData[0]["Current"]} (+${month[0].toString()})`
     },
     "graph": month,
-    "date": casesData[0]["Date"],
-    "growth": growth
+    "date": stateData[0]["Date announced"],
+    "growth": growth,
+    "vacpc": [vacpcData["totalFirstPct"], vacpcData["totalSecondPct"]],
+    "updated": updated
   }
   let fm = FileManager.iCloud()
   let path = fm.joinPath(fm.documentsDirectory(), "covid19.json")
@@ -153,12 +175,28 @@ function columnGraph(data, width, height, colour) {
   return context
 }
 
+function barGraph(firstpc, secondpc, width, height) {
+  let context = new DrawContext()
+  context.opaque = false
+  context.size = new Size(width, height)
+  context.setFillColor(new Color("ffffff", 0.2))
+  let bg = new Rect(0, 0, width, height)
+  context.fillRect(bg)
+  context.setFillColor(new Color("ffffff", 0.5))
+  let rect1 = new Rect(0, 0, width * firstpc / 100, height)
+  context.fillRect(rect1)
+  context.setFillColor(new Color("ffffff", 1))
+  let rect2 = new Rect(0, 0, width * secondpc / 100, height)
+  context.fillRect(rect2)
+  return context
+}
+
 function createWidget(data) {
   let widget = new ListWidget()
-  let now = new Date()
-  now.setHours(now.getHours() + 12)
-  widget.refreshAfterDate = now
-//   widget.setPadding(16, 16, 16, 16)
+//   let now = new Date()
+//   now.setHours(now.getHours() + 12)
+//   widget.refreshAfterDate = now
+  widget.setPadding(16, 16, 16, 16)
   
   function gradient(start, end) {
     let startColor = new Color(start)
@@ -185,14 +223,26 @@ function createWidget(data) {
   dateText.font = Font.regularSystemFont(10)
   dateText.minimumScaleFactor = 0.5
 
-  let image = columnGraph(data["graph"], 400, 100, Color.white()).getImage()
-  widget.addImage(image).applyFillingContentMode()
+  let col = columnGraph(data["graph"], 400, 100, Color.white()).getImage()
+  widget.addImage(col).applyFillingContentMode()
   let growText = widget.addText(`growth ${data["stats"]["Growth factor"]}`)
   growText.rightAlignText()
   growText.textColor = Color.white()
   growText.textOpacity = 0.8
   growText.font = Font.regularSystemFont(10)
   growText.minimumScaleFactor = 0.5
+
+  widget.addSpacer()
+  
+  let bar = barGraph(data["vacpc"][0], data["vacpc"][1], 232, 3).getImage()
+  widget.addImage(bar)
+  
+  let vaxText = widget.addText(`${data["stats"]["Fully vaccinated"]} vaccinated`)
+  vaxText.rightAlignText()
+  vaxText.textColor = Color.white()
+  vaxText.textOpacity = 0.8
+  vaxText.font = Font.regularSystemFont(10)
+  vaxText.minimumScaleFactor = 0.5
 
   widget.addSpacer()
 
@@ -241,18 +291,28 @@ function createTable(data) {
     row.backgroundColor = bgColor
     table.addRow(row)
   })
-  if (config.runsWithSiri)
-    Speech.speak(`There are ${data["stats"]["Local active cases"]} active local cases, and ${data["stats"]["Victoria new cases"]} new cases across the state today.`)
   table.present()
 }
 
-if (config.runsInWidget) {
-  let data = await loadData()
-  let widget = createWidget(data)
-  Script.setWidget(widget)
+function display(data) {
+  if (config.runsInWidget) {
+    let widget = createWidget(data)
+    Script.setWidget(widget)
+  } else {
+    createTable(data)
+  }
+  //if (config.runsWithSiri)
+  //  Speech.speak(`There are ${data["stats"]["Local active cases"]} active local cases, and ${data["stats"]["Victoria new cases"]} new cases across the state today.`)
   Script.complete()
-} else {
-  let data = await saveData()
-  createTable(data)
-  Script.complete()
+}
+
+let updated = await checkData()
+let data = await loadData()
+if (updated) {
+  if (data["updated"] != updated) {
+    data = await saveData(updated)
+    display(data)
+  } else {
+    display(data)
+  }
 }
