@@ -1,5 +1,6 @@
-// From ABC News: https://abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704
-
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
+// icon-color: deep-green; icon-glyph: procedures;
 // Configuration
 const postcode = "3550"
 
@@ -88,7 +89,7 @@ async function saveData(updated) {
   })
   
   const vaccs = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-vaccinations-by-administration.csv'
-  const vacpc = 'https://www.abc.net.au/dat/news/interactives/covid19-data//aus-doses-breakdown.csv'
+  const vacpc = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-doses-breakdown.csv'
 
   let casesData = await getData(cases, 10)
   let stateData = await getData(state, 28*8+1)
