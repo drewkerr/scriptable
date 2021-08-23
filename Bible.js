@@ -1,3 +1,6 @@
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
+// icon-color: deep-blue; icon-glyph: bible;
 async function getVerse() {
   let url = "https://www.biblegateway.com/votd/get/?format=json&version=esvuk"
   let req = new Request(url)
