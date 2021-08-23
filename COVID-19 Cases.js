@@ -109,7 +109,7 @@ async function saveData(updated) {
     return a
   }, {})
   let total = stateData.slice(0,8).reduce((a, b) => {
-    return a + parseInt(b["Cumulative confirmed"]) || 0
+    return a + (parseInt(b["Cumulative confirmed"]) || 0)
   }, 0)
   const month = Object.values(graph)
   const t = 7 // 7 day smoothing period
