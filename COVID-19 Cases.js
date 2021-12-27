@@ -2,7 +2,11 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: deep-green; icon-glyph: procedures;
 // Configuration
-const postcode = "3550"
+const location = "VIC" // ACT, NSW, NT, QLD, SA, TAS, VIC, WA
+
+// Using data sources from these articles:
+// https://www.abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704
+// https://www.abc.net.au/news/2021-03-02/charting-australias-covid-vaccine-rollout/13197518
 
 function parseCSV(str, len = 0) {
   let arr = [];
@@ -42,6 +46,16 @@ async function getData(url, len = 0) {
   return await arrayHash(csv)
 }
 
+async function concatData(url1, url2) {
+  let req1 = new Request(url1)
+  let req2 = new Request(url2)
+  let txt1 = await req1.loadString()
+  let txt2 = await req2.loadString()
+  let txt = txt1 + txt2
+  let csv = await parseCSV(txt)
+  return await arrayHash(csv)
+}
+
 // Source: https://docs.google.com/spreadsheets/d/1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk/edit
 
 const url = 'https://covid-sheets-mirror.web.app/api?'
@@ -73,34 +87,46 @@ async function saveData(updated) {
   const cases = url + params({
     cache: true,
     sheet: sid,
-    range: 'Deaths Recoveries!A:G'
+    range: 'Deaths Recoveries!A1:G10'
   })
 
   const state = url + params({
     cache: true,
     sheet: sid,
-    range: 'Daily Count States!A:E'
-  })
-
-  const local = url + params({
-    cache: true,
-    sheet: sid,
-    range: 'Vic Postcodes (Auto)!A:I'
+    range: 'Active States Daily Count!A:E'
   })
   
-  const vaccs = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-vaccinations-by-administration.csv'
-  const vacpc = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-doses-breakdown.csv'
+  const oldstate = url + params({
+    cache: true,
+    sheet: sid,
+    range: 'Daily Count States!A26:E'+(25+8*28)
+  })
 
-  let casesData = await getData(cases, 10)
-  let stateData = await getData(state, 28*8+1)
-  let localData = await getData(local, 704)
+  const hospt = url + params({
+    cache: true,
+    sheet: sid,
+    range: 'Fed Hospitalisation!A1:G9'
+  })
+
+  //const local = url + params({
+  //  cache: true,
+  //  sheet: sid,
+  //  range: 'Vic Postcodes (Auto)!A:I'
+  //})
+  
+  const vaccs = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-doses-breakdown.csv'
+
+  let casesData = await getData(cases) //, 10)
+  let stateData = await concatData(state, oldstate) //, 28*3+1)
+  let hosptData = await getData(hospt) //, 9)
+  //let localData = await getData(local, 704)
   let vaccsData = await getData(vaccs)
-  let vacpcData = await getData(vacpc)
-  vaccsData = vaccsData[vaccsData.length - 12]
-  vacpcData = vacpcData[vacpcData.length - 9]
+  vaccsData = vaccsData[vaccsData.length - 1]
+  
+  const numstr = s => parseInt(s).toLocaleString()
 
-  let vicData = stateData.filter(data => data["State/territory"] == "VIC")
-  let locData = localData.filter(data => data["postcode"] == postcode)
+  let myStateData = stateData.filter(data => data["State/territory"] == location)
+  //let locData = localData.filter(data => data["postcode"] == postcode)
 
   let graph = stateData.reduce((a, b) => {
     let date = b["Date announced"]
@@ -120,30 +146,37 @@ async function saveData(updated) {
   let data = {
     "stats": {
       "Growth factor": growth.toFixed(2),
-      "New vaccine doses": parseInt(vaccsData["daily"]).toLocaleString(),
-      "Cumulative doses": parseInt(vaccsData["total"]).toLocaleString(),
-      "Fully vaccinated": vacpcData["totalSecondPct"]+'%',
-      "At least partially": vacpcData["totalFirstPct"]+'%',
-      "Local active cases": locData[0]["active"],
-      "Local total cases": locData[0]["cases"],
-      "Victoria new cases": vicData[0]["New cases"],
-      "Victoria active cases": casesData.filter(data => data["State/territory"] == "VIC")[0]["Current"],
-      "Victoria total cases": vicData[0]["Cumulative confirmed"],
-      "Australia new cases": month[0].toString(),
-      "Australia active cases": casesData[0]["Current"],
-      "Australia total cases": total.toLocaleString(),
-      "Australia total deaths": casesData[0]["Deceased"]
+      "New vaccine doses": numstr(vaccsData["daily"]),
+      "Cumulative doses": numstr(vaccsData["total"]),
+      "Fully vaccinated": vaccsData["totalSecondPct"]+'%',
+      "At least partially": vaccsData["totalFirstPct"]+'%',
+      //"Local active cases": locData[0]["active"],
+      //"Local total cases": locData[0]["cases"],
+      [location+" new cases"]: numstr(myStateData[0]["New cases"]),
+      [location+" active cases"]: numstr(casesData.filter(data => data["State/territory"] == location)[0]["Current"]),
+      [location+" hospitalised"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["Hospitalised "]),
+      [location+" ICU"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["ICU"]),
+      [location+" ventilated"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["Ventilated"]),
+      [location+" total cases"]: numstr(myStateData[0]["Cumulative confirmed"]),
+      "Australia new cases": numstr(month[0]),
+      "Australia active cases": numstr(casesData[0]["Current"]),
+      "Australia hospitalised": numstr(hosptData.reduce((a, b) => a + (parseInt(b["Hospitalised "]) || 0), 0)),
+      "Australia ICU": numstr(hosptData.reduce((a, b) => a + (parseInt(b["ICU"]) || 0), 0)),
+      "Australia ventilated": numstr(hosptData.reduce((a, b) => a + (parseInt(b["Ventilated"]) || 0), 0)),
+      "Australia total cases": numstr(total),
+      "Australia total deaths": numstr(casesData[0]["Deceased"])
     },
     "widget": {
-      //"VAX": `${parseInt(vaccsData["total"]).toLocaleString()} (+${Math.round(parseInt(vaccsData["daily"])/1000)}k)`,
-      "LGA": `${locData[0]["active"]} active`,
-      "VIC": `${casesData.filter(data => data["State/territory"] == "VIC")[0]["Current"]} (+${vicData[0]["New cases"]})`,
+      //"VAX": `${Math.round(parseInt(vaccsData["total"])/100000)/10}M (+${Math.round(parseInt(vaccsData["daily"])/1000)}k)`,  
+      "ICU": `${hosptData.reduce((a, b) => a + (parseInt(b["ICU"]) || 0), 0)} / ${hosptData.reduce((a, b) => a + (parseInt(b["Hospitalised "]) || 0), 0)}`,
+      [location]: `${casesData.filter(data => data["State/territory"] == location)[0]["Current"]} (+${myStateData[0]["New cases"]})`,
       "AUS": `${casesData[0]["Current"]} (+${month[0].toString()})`
     },
-    "graph": month,
+    "national": month.slice(0,28),
+    "state": myStateData.map(a => parseInt(a["New cases"]) || 0).slice(0,28),
     "date": stateData[0]["Date announced"],
     "growth": growth,
-    "vacpc": [vacpcData["totalFirstPct"], vacpcData["totalSecondPct"]],
+    "vacpc": [vaccsData["totalFirstPct"], vaccsData["totalSecondPct"]],
     "updated": updated
   }
   let fm = FileManager.iCloud()
@@ -155,28 +188,35 @@ async function saveData(updated) {
 function loadData() {
   let fm = FileManager.iCloud()
   let path = fm.joinPath(fm.documentsDirectory(), "covid19.json")
-  let data = fm.readString(path)
-  return JSON.parse(data)
+  if (fm.fileExists(path)) {
+    let data = fm.readString(path)
+    return JSON.parse(data)
+  } else {
+    return { updated: false }
+  }
 }
 
-function columnGraph(data, width, height, colour) {
-  let max = Math.max(...data)
+function caseGraph(totdata, subdata, width, height, colour) {
+  const max = Math.max(...totdata)
   let context = new DrawContext()
   context.size = new Size(width, height)
   context.opaque = false
-  context.setFillColor(colour)
-  data.forEach((value, index) => {
+  const drawColumns = (value, index, data) => {
     let w = width / (2 * data.length - 1)
     let h = value / max * height
     let x = width - (index * 2 + 1) * w
     let y = height - h
     let rect = new Rect(x, y, w, h)
     context.fillRect(rect)
-  })
+  }
+  context.setFillColor(new Color(colour, 0.5))
+  totdata.forEach(drawColumns)
+  context.setFillColor(new Color(colour, 1))
+  subdata.forEach(drawColumns)
   return context
 }
 
-function barGraph(firstpc, secondpc, width, height) {
+function vaccGraph(firstpc, secondpc, width, height) {
   let context = new DrawContext()
   context.opaque = false
   context.size = new Size(width, height)
@@ -224,7 +264,7 @@ function createWidget(data) {
   dateText.font = Font.regularSystemFont(10)
   dateText.minimumScaleFactor = 0.5
 
-  let col = columnGraph(data["graph"], 400, 100, Color.white()).getImage()
+  let col = caseGraph(data["national"], data["state"], 400, 100, "ffffff").getImage()
   widget.addImage(col).applyFillingContentMode()
   let growText = widget.addText(`growth ${data["stats"]["Growth factor"]}`)
   growText.rightAlignText()
@@ -235,7 +275,7 @@ function createWidget(data) {
 
   widget.addSpacer()
   
-  let bar = barGraph(data["vacpc"][0], data["vacpc"][1], 232, 3).getImage()
+  let bar = vaccGraph(data["vacpc"][0], data["vacpc"][1], 232, 3).getImage()
   widget.addImage(bar)
   
   let vaxText = widget.addText(`${data["stats"]["Fully vaccinated"]} vaccinated`)
@@ -273,7 +313,7 @@ function createTable(data) {
     dark ? new Color("330000") :
     growth < 1 ? new Color("b8ffb1") :
     new Color("ffb1b1")
-  let fgColor = dark ? Color.white() : Color.black()
+  let fgColor = dark ? "ffffff" : "000000"
   let head = new UITableRow()
   head.isHeader = true
   head.addText('COVID-19 Statistics')
@@ -282,7 +322,7 @@ function createTable(data) {
   table.addRow(head)
   let row = new UITableRow()
   row.backgroundColor = bgColor
-  let image = columnGraph(data["graph"], 640, 50, fgColor).getImage()
+  let image = caseGraph(data["national"], data["state"], 640, 50, fgColor).getImage()
   row.addImage(image)
   table.addRow(row)
   Object.entries(data["stats"]).forEach(([key, value]) => {
@@ -302,8 +342,6 @@ function display(data) {
   } else {
     createTable(data)
   }
-  //if (config.runsWithSiri)
-  //  Speech.speak(`There are ${data["stats"]["Local active cases"]} active local cases, and ${data["stats"]["Victoria new cases"]} new cases across the state today.`)
   Script.complete()
 }
 
