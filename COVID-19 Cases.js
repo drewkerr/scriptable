@@ -46,16 +46,6 @@ async function getData(url, len = 0) {
   return await arrayHash(csv)
 }
 
-async function concatData(url1, url2) {
-  let req1 = new Request(url1)
-  let req2 = new Request(url2)
-  let txt1 = await req1.loadString()
-  let txt2 = await req2.loadString()
-  let txt = txt1 + txt2
-  let csv = await parseCSV(txt)
-  return await arrayHash(csv)
-}
-
 // Source: https://docs.google.com/spreadsheets/d/1nUUU5zPRPlhAXM_-8R7lsMnAkK4jaebvIL5agAaKoXk/edit
 
 const url = 'https://covid-sheets-mirror.web.app/api?'
@@ -84,22 +74,10 @@ async function checkData() {
 
 async function saveData(updated) {
 
-  const cases = url + params({
-    cache: true,
-    sheet: sid,
-    range: 'Deaths Recoveries!A1:G10'
-  })
-
   const state = url + params({
     cache: true,
     sheet: sid,
     range: 'Active States Daily Count!A:E'
-  })
-  
-  const oldstate = url + params({
-    cache: true,
-    sheet: sid,
-    range: 'Daily Count States!A26:E'+(25+8*28)
   })
 
   const hospt = url + params({
@@ -107,26 +85,26 @@ async function saveData(updated) {
     sheet: sid,
     range: 'Fed Hospitalisation!A1:G9'
   })
-
-  //const local = url + params({
-  //  cache: true,
-  //  sheet: sid,
-  //  range: 'Vic Postcodes (Auto)!A:I'
-  //})
+  
+  const death = url + params({
+    cache: true,
+    sheet: sid,
+    range: 'Deaths!A:C'
+  })
   
   const vaccs = 'https://www.abc.net.au/dat/news/interactives/covid19-data/aus-doses-breakdown.csv'
 
-  let casesData = await getData(cases) //, 10)
-  let stateData = await concatData(state, oldstate) //, 28*3+1)
-  let hosptData = await getData(hospt) //, 9)
-  //let localData = await getData(local, 704)
+  let stateData = await getData(state)
+  let hosptData = await getData(hospt)
+  let deathData = await getData(death)
   let vaccsData = await getData(vaccs)
   vaccsData = vaccsData[vaccsData.length - 1]
   
   const numstr = s => parseInt(s).toLocaleString()
 
   let myStateData = stateData.filter(data => data["State/territory"] == location)
-  //let locData = localData.filter(data => data["postcode"] == postcode)
+  let newDeaths = deathData.filter(data => data["Date"] == deathData[0].Date)
+  let newLocalDeaths = newDeaths.filter(data => data["State/territory"] == location)
 
   let graph = stateData.reduce((a, b) => {
     let date = b["Date announced"]
@@ -150,27 +128,24 @@ async function saveData(updated) {
       "Cumulative doses": numstr(vaccsData["total"]),
       "Fully vaccinated": vaccsData["totalSecondPct"]+'%',
       "At least partially": vaccsData["totalFirstPct"]+'%',
-      //"Local active cases": locData[0]["active"],
-      //"Local total cases": locData[0]["cases"],
       [location+" new cases"]: numstr(myStateData[0]["New cases"]),
-      [location+" active cases"]: numstr(casesData.filter(data => data["State/territory"] == location)[0]["Current"]),
+      [location+" total cases"]: numstr(myStateData[0]["Cumulative confirmed"]),
       [location+" hospitalised"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["Hospitalised "]),
       [location+" ICU"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["ICU"]),
       [location+" ventilated"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["Ventilated"]),
-      [location+" total cases"]: numstr(myStateData[0]["Cumulative confirmed"]),
+      [location+" new deaths"]: numstr(newLocalDeaths.length),
       "Australia new cases": numstr(month[0]),
-      "Australia active cases": numstr(casesData[0]["Current"]),
       "Australia hospitalised": numstr(hosptData.reduce((a, b) => a + (parseInt(b["Hospitalised "]) || 0), 0)),
       "Australia ICU": numstr(hosptData.reduce((a, b) => a + (parseInt(b["ICU"]) || 0), 0)),
       "Australia ventilated": numstr(hosptData.reduce((a, b) => a + (parseInt(b["Ventilated"]) || 0), 0)),
       "Australia total cases": numstr(total),
-      "Australia total deaths": numstr(casesData[0]["Deceased"])
+      "Australia new deaths": numstr(newDeaths.length),
+      "Australia total deaths": numstr(deathData[0]["Death ID"])
     },
     "widget": {
-      //"VAX": `${Math.round(parseInt(vaccsData["total"])/100000)/10}M (+${Math.round(parseInt(vaccsData["daily"])/1000)}k)`,  
       "ICU": `${hosptData.reduce((a, b) => a + (parseInt(b["ICU"]) || 0), 0)} / ${hosptData.reduce((a, b) => a + (parseInt(b["Hospitalised "]) || 0), 0)}`,
-      [location]: `${casesData.filter(data => data["State/territory"] == location)[0]["Current"]} (+${myStateData[0]["New cases"]})`,
-      "AUS": `${casesData[0]["Current"]} (+${month[0].toString()})`
+      [location]: `+${myStateData[0]["New cases"]} -${numstr(newLocalDeaths.length)}`,
+      "AUS": `+${month[0].toString()}  -${numstr(newDeaths.length)}`
     },
     "national": month.slice(0,28),
     "state": myStateData.map(a => parseInt(a["New cases"]) || 0).slice(0,28),
@@ -234,9 +209,6 @@ function vaccGraph(firstpc, secondpc, width, height) {
 
 function createWidget(data) {
   let widget = new ListWidget()
-//   let now = new Date()
-//   now.setHours(now.getHours() + 12)
-//   widget.refreshAfterDate = now
   widget.setPadding(16, 16, 16, 16)
   
   function gradient(start, end) {
