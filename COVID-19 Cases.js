@@ -98,9 +98,10 @@ async function saveData(updated) {
   let hosptData = await getData(hospt)
   let deathData = await getData(death)
   let vaccsData = await getData(vaccs)
-  vaccsData = vaccsData[vaccsData.length - 1]
+  vaccsData = vaccsData.filter(data => data["place"] == "AUS").pop()
   
   const numstr = s => parseInt(s).toLocaleString()
+  const to2dp = s => parseFloat(s).toFixed(2)
 
   let myStateData = stateData.filter(data => data["State/territory"] == location)
   let newDeaths = deathData.filter(data => data["Date"] == deathData[0].Date)
@@ -126,8 +127,9 @@ async function saveData(updated) {
       "Growth factor": growth.toFixed(2),
       "New vaccine doses": numstr(vaccsData["daily"]),
       "Cumulative doses": numstr(vaccsData["total"]),
-      "Fully vaccinated": vaccsData["totalSecondPct"]+'%',
-      "At least partially": vaccsData["totalFirstPct"]+'%',
+      "First Dose 5+": to2dp(vaccsData["totalFirstPct"])+'%',
+      "Second Dose 5+": to2dp(vaccsData["totalSecondPct"])+'%',
+      "Third Dose 18+": to2dp(vaccsData["totalThirdPct_18_plus"])+'%',
       [location+" new cases"]: numstr(myStateData[0]["New cases"]),
       [location+" total cases"]: numstr(myStateData[0]["Cumulative confirmed"]),
       [location+" hospitalised"]: numstr(hosptData.filter(data => data["State/territory"] == location)[0]["Hospitalised "]),
@@ -150,8 +152,7 @@ async function saveData(updated) {
     "national": month.slice(0,28),
     "state": myStateData.map(a => parseInt(a["New cases"]) || 0).slice(0,28),
     "date": stateData[0]["Date announced"],
-    "growth": growth,
-    "vacpc": [vaccsData["totalFirstPct"], vaccsData["totalSecondPct"]],
+    "vacpc": [to2dp(vaccsData["totalFirstPct"]), to2dp(vaccsData["totalSecondPct"]), to2dp(vaccsData["totalThirdPct_18_plus"])],
     "updated": updated
   }
   let fm = FileManager.iCloud()
@@ -191,19 +192,16 @@ function caseGraph(totdata, subdata, width, height, colour) {
   return context
 }
 
-function vaccGraph(firstpc, secondpc, width, height) {
+function vaccGraph(firstpc, secondpc, thirdpc, width, height) {
+  console.log(firstpc, secondpc, thirdpc)
   let context = new DrawContext()
   context.opaque = false
   context.size = new Size(width, height)
-  context.setFillColor(new Color("ffffff", 0.2))
-  let bg = new Rect(0, 0, width, height)
-  context.fillRect(bg)
-  context.setFillColor(new Color("ffffff", 0.5))
-  let rect1 = new Rect(0, 0, width * firstpc / 100, height)
-  context.fillRect(rect1)
-  context.setFillColor(new Color("ffffff", 1))
-  let rect2 = new Rect(0, 0, width * secondpc / 100, height)
-  context.fillRect(rect2)
+  for (const pc of [100, firstpc, secondpc, thirdpc]) {
+    context.setFillColor(new Color("ffffff", 0.2))
+    let rect = new Rect(0, 0, width * pc / 100, height)
+    context.fillRect(rect)
+  }
   return context
 }
 
@@ -247,10 +245,10 @@ function createWidget(data) {
 
   widget.addSpacer()
   
-  let bar = vaccGraph(data["vacpc"][0], data["vacpc"][1], 232, 3).getImage()
+  let bar = vaccGraph(data["vacpc"][0], data["vacpc"][1], data["vacpc"][2], 232, 3).getImage()
   widget.addImage(bar)
   
-  let vaxText = widget.addText(`${data["stats"]["Fully vaccinated"]} vaccinated`)
+  let vaxText = widget.addText(`${data["stats"]["Third Dose 18+"]} boosted`)
   vaxText.rightAlignText()
   vaxText.textColor = Color.white()
   vaxText.textOpacity = 0.8
@@ -319,7 +317,7 @@ function display(data) {
 
 let updated = await checkData()
 let data = await loadData()
-if (updated) {
+if (updated || false) { // set true if developing
   if (data["updated"] != updated) {
     data = await saveData(updated)
     display(data)
