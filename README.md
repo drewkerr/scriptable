@@ -1,5 +1,9 @@
 Some scripts I have written for [Scriptable](https://scriptable.app), an amazing JavaScript programming environment for iOS that supports automation, native APIs and widgets.
 
+![Weather](https://github.com/drewkerr/scriptable/blob/main/screenshots/weather.png) 
+
+[Weather Station](https://github.com/drewkerr/scriptable/blob/main/Weather%20Station.js) widget for Ecowitt weather stations using [the API](https://doc.ecowitt.net/web/#/apiv3en?page_id=17). Shows the indoor/outdoor temperatures and a line graph of the last 6 hours, wind speed and direction, rainfall, humidity and air pressure with accurate wind vane and barometer icons.
+
 ![COVID](https://github.com/drewkerr/scriptable/blob/main/screenshots/covid.png) 
 
 [COVID-19 Cases](https://github.com/drewkerr/scriptable/blob/main/COVID-19%20Cases.js) widget using [ABC data](https://mobile.abc.net.au/news/2020-03-17/coronavirus-cases-data-reveals-how-covid-19-spreads-in-australia/12060704) and providing local case numbers in Australia. Changes colour based on weekly growth rate and tap to show more data in a table view. Edit the source to change the local/state area. Users elsewhere might get some ideas for how to draw a column graph.
